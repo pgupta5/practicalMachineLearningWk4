@@ -1,0 +1,99 @@
+# Prediction Assignment Writeup
+
+## Overview
+The main goal of the project is to predict the manner in which participants performed some exercise. This is the "classe" variable 
+in the training set. The machine learning algorithm is applied to the test data and the predictions are made.
+
+## Datasets (description from the Author's website)
+"Six young health participants were asked to perform one set of 10 repetitions of the Unilateral Dumbbell Biceps Curl in five different fashions: exactly according to the specification (Class A), throwing the elbows to the front (Class B), lifting the dumbbell only halfway (Class C), lowering the dumbbell only halfway (Class D) and throwing the hips to the front (Class E).
+
+Class A corresponds to the specified execution of the exercise, while the other 4 classes correspond to common mistakes. Participants were supervised by an experienced weight lifter to make sure the execution complied to the manner they were supposed to simulate. The exercises were performed by six male participants aged between 20-28 years, with little weight lifting experience. We made sure that all participants could easily simulate the mistakes in a safe and controlled manner by using a relatively light dumbbell (1.25kg)."
+
+## Loading the Libraries
+```{r}
+library(knitr)
+library(caret)
+library(Rcpp)
+library(rpart)
+library(rattle)
+library(corrplot)
+library(e1071)
+set.seed(123)
+```
+
+## Data Loading and Cleaning
+```{r}
+#Downloading the Data
+train_url<- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+test_url<- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+
+#Reading the data
+training_data<- read.csv(url(train_url))
+testing_data<- read.csv(url(test_url))
+
+#Removing almost zero values
+nzv <- nearZeroVar(training_data)
+train_data <- training_data[,-nzv]
+test_data <- testing_data[,-nzv]
+
+#Removing NA Values of Variables.  
+na_val_col <- sapply(train_data, function(x) mean(is.na(x))) > 0.95
+train_data <- train_data[,na_val_col == FALSE]
+test_data <- test_data[,na_val_col == FALSE]
+
+train_data<- train_data[,-c(1:7)]
+test_data<- test_data[,-1]
+
+dim(train_data)
+dim(test_data)
+```
+
+The training data set is made of 19622 observations on 160 columns. We have removed insignificant and NA values from the dataset.
+
+## Correlation Analysis
+A correlation among variables is analysed before proceeding to the modeling procedures.
+```{r}
+corMatrix <- cor(train_data[, -52])
+corrplot(corMatrix, order = "FPC", method = "color", type = "lower", 
+         tl.cex = 0.8, tl.col = rgb(0, 0, 0))
+```
+
+## Creating a training and test set for analysis
+```{r}
+inTrain<- createDataPartition(train_data$classe, p=0.7, list=FALSE)
+training<- train_data[inTrain,]
+testing<- train_data[-inTrain,]
+dim(training)
+```
+## Fitting the models
+We will try fitting two models: Random Forest and Decision Trees
+
+### Random Forest
+```{r}
+RF_model<- train(classe ~. , data=training, method= "rf", ntree=100)
+RF_predict <- predict(RF_model, newdata=testing)
+RF_confMat <- table(testing$classe,RF_predict)
+RF_confMat
+```
+
+### Decision Trees
+```{r}
+DT_model<- train(classe ~. , data=training, method= "rpart")
+DT_predict <- predict(DT_model, newdata=testing)
+DT_confMat <- table(testing$classe, DT_predict)
+DT_confMat
+```
+
+Based on the tables, the Random Forest algorithm fits the data.
+
+## Prediction
+Based on the results obtained, Random Forest model will be applied to predict the results.
+
+```{r}
+predictTEST <- predict(RF_model, newdata=test_data)
+PredictionResults <- data.frame(
+  problem_id=test_data$problem_id,
+  predicted=predictTEST
+)
+PredictionResults
+```
